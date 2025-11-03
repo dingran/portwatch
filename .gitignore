@@ -42,7 +42,6 @@ coverage/
 
 # Electron
 release/
-app/
 
 # Config (user-specific)
 .portwatch/
