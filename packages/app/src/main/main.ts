@@ -1,6 +1,7 @@
 import { app, ipcMain, nativeImage } from 'electron';
 import { menubar, Menubar } from 'menubar';
 import path from 'path';
+import fs from 'fs';
 import {
   scanPortsEnriched,
   FilterOptions,
@@ -12,17 +13,40 @@ import {
 
 let mb: Menubar;
 
+/**
+ * Load menubar icon with graceful fallback
+ */
+function getMenubarIcon(): nativeImage {
+  const iconPath = path.join(__dirname, '..', '..', 'assets', 'IconTemplate.png');
+
+  console.log('Looking for icon at:', iconPath);
+
+  if (fs.existsSync(iconPath)) {
+    console.log('✓ Icon found, loading from disk');
+    return nativeImage.createFromPath(iconPath);
+  }
+
+  console.warn('⚠ Menubar icon not found, using empty placeholder');
+  console.warn('  Create icon at:', iconPath);
+  return nativeImage.createEmpty();
+}
+
 // Create menubar app
 app.whenReady().then(() => {
-  // Create icon
-  const icon = nativeImage.createFromPath(
-    path.join(__dirname, '..', '..', 'assets', 'IconTemplate.png')
-  );
+  console.log('🚀 PortWatch app starting...');
+  console.log('  NODE_ENV:', process.env.NODE_ENV);
+  console.log('  __dirname:', __dirname);
+
+  const icon = getMenubarIcon();
+
+  const indexUrl = process.env.NODE_ENV === 'development'
+    ? 'http://localhost:5173'
+    : `file://${path.join(__dirname, '..', 'renderer', 'index.html')}`;
+
+  console.log('  Index URL:', indexUrl);
 
   mb = menubar({
-    index: process.env.NODE_ENV === 'development'
-      ? 'http://localhost:5173'
-      : `file://${path.join(__dirname, '..', 'renderer', 'index.html')}`,
+    index: indexUrl,
     icon,
     browserWindow: {
       width: 400,
@@ -41,7 +65,25 @@ app.whenReady().then(() => {
   });
 
   mb.on('ready', () => {
-    console.log('PortWatch is ready');
+    console.log('✓ PortWatch menubar is ready');
+  });
+
+  mb.on('show', () => {
+    console.log('📂 Menubar window shown');
+  });
+
+  mb.on('hide', () => {
+    console.log('📁 Menubar window hidden');
+  });
+
+  mb.on('after-create-window', () => {
+    console.log('✓ Window created');
+
+    // Open DevTools in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔧 Opening DevTools (development mode)');
+      mb.window?.webContents.openDevTools({ mode: 'detach' });
+    }
   });
 
   // Set up IPC handlers
@@ -50,12 +92,17 @@ app.whenReady().then(() => {
 
 // Set up IPC handlers for communication with renderer
 function setupIpcHandlers() {
+  console.log('⚡ Setting up IPC handlers');
+
   // Scan ports
   ipcMain.handle('scan-ports', async (event, filters?: FilterOptions) => {
+    console.log('IPC: scan-ports called with filters:', filters);
     try {
       const ports = await scanPortsEnriched(filters);
+      console.log(`IPC: scan-ports found ${ports.length} ports`);
       return { success: true, data: ports };
     } catch (error: any) {
+      console.error('IPC: scan-ports error:', error);
       return { success: false, error: error.message };
     }
   });
