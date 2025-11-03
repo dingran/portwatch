@@ -148,12 +148,24 @@ function matchesFilters(portInfo: PortInfo, filters?: FilterOptions): boolean {
     return false;
   }
 
+  if (filters.portRange !== undefined) {
+    const { min, max } = filters.portRange;
+    if (portInfo.port < min || portInfo.port > max) {
+      return false;
+    }
+  }
+
   if (filters.pid !== undefined && portInfo.pid !== filters.pid) {
     return false;
   }
 
   if (filters.processName !== undefined &&
       !portInfo.processName.toLowerCase().includes(filters.processName.toLowerCase())) {
+    return false;
+  }
+
+  if (filters.processPrefix !== undefined &&
+      !portInfo.processName.toLowerCase().startsWith(filters.processPrefix.toLowerCase())) {
     return false;
   }
 

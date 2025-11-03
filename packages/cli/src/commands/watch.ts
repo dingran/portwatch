@@ -5,16 +5,27 @@ import { formatPortTable, formatError } from '../utils/formatter';
 export const watchCommand = new Command('watch')
   .description('Watch ports with auto-refresh')
   .option('-p, --port <port>', 'Filter by port number', parseInt)
+  .option('-r, --port-range <range>', 'Filter by port range (e.g., 3000-3100)')
   .option('--pid <pid>', 'Filter by process ID', parseInt)
-  .option('-n, --name <name>', 'Filter by process name')
+  .option('-n, --name <name>', 'Filter by process name (substring match)')
+  .option('--prefix <prefix>', 'Filter by process name prefix')
   .option('-d, --dir <directory>', 'Filter by working directory')
   .option('-i, --interval <seconds>', 'Refresh interval in seconds (default: 5)', parseInt, 5)
   .action(async (options) => {
     // Build filter options
     const filters: FilterOptions = {};
     if (options.port) filters.port = options.port;
+    if (options.portRange) {
+      const [min, max] = options.portRange.split('-').map((s: string) => parseInt(s.trim(), 10));
+      if (isNaN(min) || isNaN(max) || min > max) {
+        console.error(formatError('Invalid port range. Use format: 3000-3100'));
+        process.exit(1);
+      }
+      filters.portRange = { min, max };
+    }
     if (options.pid) filters.pid = options.pid;
     if (options.name) filters.processName = options.name;
+    if (options.prefix) filters.processPrefix = options.prefix;
     if (options.dir) filters.workingDirectory = options.dir;
 
     const intervalMs = options.interval * 1000;

@@ -31,8 +31,10 @@ export interface DisplayConfig {
  */
 export interface FilterOptions {
   port?: number;
+  portRange?: { min: number; max: number };
   pid?: number;
   processName?: string;
+  processPrefix?: string;
   workingDirectory?: string;
 }
 
@@ -65,8 +67,13 @@ export const PortInfoSchema = z.object({
 
 export const FilterOptionsSchema = z.object({
   port: z.number().int().min(0).max(65535).optional(),
+  portRange: z.object({
+    min: z.number().int().min(0).max(65535),
+    max: z.number().int().min(0).max(65535),
+  }).optional(),
   pid: z.number().int().positive().optional(),
   processName: z.string().optional(),
+  processPrefix: z.string().optional(),
   workingDirectory: z.string().optional(),
 });
 
