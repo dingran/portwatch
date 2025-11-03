@@ -1,17 +1,43 @@
 import { useState, useEffect } from 'react';
-import { PortInfo } from '@portwatch/core';
+import { PortInfo, FilterOptions } from '@portwatch/core';
 
 function App() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch ports
+  // Advanced filters
+  const [portRangeMin, setPortRangeMin] = useState('');
+  const [portRangeMax, setPortRangeMax] = useState('');
+  const [searchMode, setSearchMode] = useState<'substring' | 'prefix'>('substring');
+
+  // Fetch ports with filters
   const fetchPorts = async () => {
     setLoading(true);
     try {
-      const result = await window.portwatchAPI.scanPorts();
+      const filters: FilterOptions = {};
+
+      // Port range filter
+      if (portRangeMin && portRangeMax) {
+        const min = parseInt(portRangeMin, 10);
+        const max = parseInt(portRangeMax, 10);
+        if (!isNaN(min) && !isNaN(max) && min <= max) {
+          filters.portRange = { min, max };
+        }
+      }
+
+      // Process name filter
+      if (searchText) {
+        if (searchMode === 'prefix') {
+          filters.processPrefix = searchText;
+        } else {
+          filters.processName = searchText;
+        }
+      }
+
+      const result = await window.portwatchAPI.scanPorts(filters);
       if (result.success && result.data) {
         setPorts(result.data);
       }
@@ -30,15 +56,7 @@ function App() {
       const interval = setInterval(fetchPorts, 5000);
       return () => clearInterval(interval);
     }
-  }, [autoRefresh]);
-
-  // Filter ports
-  const filteredPorts = ports.filter(
-    (port) =>
-      port.port.toString().includes(filter) ||
-      port.processName.toLowerCase().includes(filter.toLowerCase()) ||
-      port.workingDirectory.toLowerCase().includes(filter.toLowerCase())
-  );
+  }, [autoRefresh, searchText, portRangeMin, portRangeMax, searchMode]);
 
   // Kill process
   const handleKill = async (port: number) => {
@@ -60,6 +78,17 @@ function App() {
           <h1 className="text-lg font-semibold text-gray-800">PortWatch</h1>
           <div className="flex gap-2">
             <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-2 py-1 text-xs rounded ${
+                showFilters
+                  ? 'bg-purple-500 text-white hover:bg-purple-600'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title="Advanced filters"
+            >
+              ⚙️
+            </button>
+            <button
               onClick={fetchPorts}
               disabled={loading}
               className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
@@ -73,29 +102,86 @@ function App() {
                   ? 'bg-green-500 text-white hover:bg-green-600'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
+              title="Auto-refresh"
             >
               Auto
             </button>
           </div>
         </div>
-        <input
-          type="text"
-          placeholder="Filter by port, name, or directory..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+
+        {/* Search */}
+        <div className="flex gap-2 mb-2">
+          <input
+            type="text"
+            placeholder={`Search ${searchMode === 'prefix' ? 'prefix' : 'name'}...`}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <select
+            value={searchMode}
+            onChange={(e) => setSearchMode(e.target.value as 'substring' | 'prefix')}
+            className="px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="substring">Contains</option>
+            <option value="prefix">Starts with</option>
+          </select>
+        </div>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div className="p-2 bg-gray-50 rounded border border-gray-200 space-y-2">
+            <div>
+              <label className="text-xs text-gray-600 font-medium mb-1 block">
+                Port Range
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={portRangeMin}
+                  onChange={(e) => setPortRangeMin(e.target.value)}
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                  max="65535"
+                />
+                <span className="text-gray-400 self-center">-</span>
+                <input
+                  type="number"
+                  placeholder="Max"
+                  value={portRangeMax}
+                  onChange={(e) => setPortRangeMax(e.target.value)}
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                  max="65535"
+                />
+                {(portRangeMin || portRangeMax) && (
+                  <button
+                    onClick={() => {
+                      setPortRangeMin('');
+                      setPortRangeMax('');
+                    }}
+                    className="px-2 py-1 text-xs text-gray-600 hover:text-red-600"
+                    title="Clear"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Port List */}
       <div className="flex-1 overflow-y-auto">
-        {filteredPorts.length === 0 ? (
+        {ports.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">
             {loading ? 'Loading...' : 'No ports found'}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {filteredPorts.map((port, index) => (
+            {ports.map((port, index) => (
               <div
                 key={`${port.pid}-${port.port}-${index}`}
                 className="p-3 hover:bg-gray-100 transition-colors"
@@ -130,7 +216,7 @@ function App() {
 
       {/* Footer */}
       <div className="bg-white border-t border-gray-200 px-3 py-2 text-xs text-gray-500 text-center">
-        {filteredPorts.length} port{filteredPorts.length !== 1 ? 's' : ''} • PortWatch v1.0.0
+        {ports.length} port{ports.length !== 1 ? 's' : ''} • PortWatch v1.0.0
       </div>
     </div>
   );
