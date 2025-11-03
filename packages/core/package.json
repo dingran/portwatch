@@ -1,0 +1,25 @@
+{
+  "name": "@portwatch/core",
+  "version": "1.0.0",
+  "description": "Core library for port monitoring",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "echo \"Tests coming soon\""
+  },
+  "keywords": [
+    "port",
+    "monitoring"
+  ],
+  "author": "dingran",
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

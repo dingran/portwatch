@@ -1,0 +1,28 @@
+{
+  "name": "portwatch-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PortWatch - macOS port monitoring tool",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:cli": "npm run dev -w @portwatch/cli",
+    "dev:app": "npm run dev -w @portwatch/app",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "keywords": [
+    "port",
+    "monitoring",
+    "macos",
+    "cli",
+    "electron"
+  ],
+  "author": "dingran",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}
