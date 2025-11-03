@@ -7,8 +7,11 @@ test.describe('UI Tests', () => {
   test.beforeEach(async () => {
     context = await launchElectronApp();
     await context.window.waitForLoadState('domcontentloaded');
-    // Wait for initial port scan to complete
-    await context.window.waitForTimeout(2000);
+    // Wait for initial port scan to complete (wait for Loading... to disappear)
+    await context.window.waitForFunction(() => {
+      const loadingText = document.body.textContent;
+      return !loadingText?.includes('Loading...');
+    }, { timeout: 10000 });
   });
 
   test.afterEach(async () => {
@@ -118,7 +121,7 @@ test.describe('UI Tests', () => {
   test('refresh button works', async () => {
     const { window } = context;
 
-    // Find refresh button
+    // Find refresh button (loading already completed in beforeEach)
     const refreshButton = window.locator('button:has-text("↻")');
     await expect(refreshButton).toBeVisible();
 

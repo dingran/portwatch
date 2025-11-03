@@ -48,6 +48,12 @@ test.describe('Smoke Tests', () => {
     // Wait for React to render
     await window.waitForSelector('text=PortWatch', { timeout: 10000 });
 
+    // Wait for initial loading to complete (wait for Loading... to disappear)
+    await window.waitForFunction(() => {
+      const loadingText = document.body.textContent;
+      return !loadingText?.includes('Loading...');
+    }, { timeout: 10000 });
+
     // Check for header
     const header = await window.textContent('h1');
     expect(header).toContain('PortWatch');
@@ -64,22 +70,25 @@ test.describe('Smoke Tests', () => {
   test('app quits cleanly', async () => {
     const { app } = context;
 
-    // Close the app
-    await app.close();
+    // Close the app - should complete without errors
+    await expect(app.close()).resolves.not.toThrow();
 
-    // Verify app is closed
-    const isRunning = app.isConnected();
-    expect(isRunning).toBe(false);
+    // Verify all windows are closed
+    const windows = app.windows();
+    expect(windows.length).toBe(0);
   });
 
   test('window dimensions are correct', async () => {
-    const { window } = context;
+    const { app, window } = context;
 
-    // Get window size
-    const size = await window.viewportSize();
+    // Get window bounds using Electron API
+    const bounds = await app.evaluate(async ({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      return win.getBounds();
+    });
 
     // Should match the dimensions set in main.ts (400x600)
-    expect(size?.width).toBe(400);
-    expect(size?.height).toBe(600);
+    expect(bounds.width).toBe(400);
+    expect(bounds.height).toBe(600);
   });
 });
