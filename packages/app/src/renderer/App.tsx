@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PortInfo, FilterOptions } from '@portwatch/core';
+import { PortInfo, FilterOptions, FilterPreset } from '@portwatch/core';
 
 function App() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
@@ -12,6 +12,10 @@ function App() {
   const [portRangeMin, setPortRangeMin] = useState('');
   const [portRangeMax, setPortRangeMax] = useState('');
   const [searchMode, setSearchMode] = useState<'substring' | 'prefix'>('substring');
+
+  // Presets
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   // Fetch ports with filters
   const fetchPorts = async () => {
@@ -48,6 +52,17 @@ function App() {
     }
   };
 
+  // Load presets on mount
+  useEffect(() => {
+    const loadPresets = async () => {
+      const result = await window.portwatchAPI.loadConfig();
+      if (result.success && result.data?.presets) {
+        setPresets(result.data.presets);
+      }
+    };
+    loadPresets();
+  }, []);
+
   // Initial fetch and auto-refresh
   useEffect(() => {
     fetchPorts();
@@ -57,6 +72,117 @@ function App() {
       return () => clearInterval(interval);
     }
   }, [autoRefresh, searchText, portRangeMin, portRangeMax, searchMode]);
+
+  // Apply a preset
+  const applyPreset = (preset: FilterPreset) => {
+    const { filters } = preset;
+
+    // Clear all filters first
+    setSearchText('');
+    setPortRangeMin('');
+    setPortRangeMax('');
+
+    // Apply port range
+    if (filters.portRange) {
+      setPortRangeMin(filters.portRange.min.toString());
+      setPortRangeMax(filters.portRange.max.toString());
+    }
+
+    // Apply exact port
+    if (filters.port !== undefined) {
+      setPortRangeMin(filters.port.toString());
+      setPortRangeMax(filters.port.toString());
+    }
+
+    // Apply process filter
+    if (filters.processPrefix) {
+      setSearchText(filters.processPrefix);
+      setSearchMode('prefix');
+    } else if (filters.processName) {
+      setSearchText(filters.processName);
+      setSearchMode('substring');
+    }
+
+    setActivePresetId(preset.id);
+  };
+
+  // Save current filters as preset
+  const saveCurrentAsPreset = async () => {
+    const name = prompt('Enter preset name:');
+    if (!name) return;
+
+    const description = prompt('Enter description (optional):');
+
+    const newPreset: FilterPreset = {
+      id: `custom-${Date.now()}`,
+      name,
+      description: description || undefined,
+      filters: {},
+    };
+
+    // Build filters from current state
+    if (portRangeMin && portRangeMax) {
+      const min = parseInt(portRangeMin, 10);
+      const max = parseInt(portRangeMax, 10);
+      if (!isNaN(min) && !isNaN(max)) {
+        if (min === max) {
+          newPreset.filters.port = min;
+        } else {
+          newPreset.filters.portRange = { min, max };
+        }
+      }
+    }
+
+    if (searchText) {
+      if (searchMode === 'prefix') {
+        newPreset.filters.processPrefix = searchText;
+      } else {
+        newPreset.filters.processName = searchText;
+      }
+    }
+
+    // Save to config
+    const updatedPresets = [...presets, newPreset];
+    setPresets(updatedPresets);
+
+    const configResult = await window.portwatchAPI.loadConfig();
+    if (configResult.success && configResult.data) {
+      await window.portwatchAPI.saveConfig({
+        ...configResult.data,
+        presets: updatedPresets,
+      });
+    }
+
+    alert(`Preset "${name}" saved!`);
+  };
+
+  // Delete a preset
+  const deletePreset = async (presetId: string) => {
+    if (!confirm('Delete this preset?')) return;
+
+    const updatedPresets = presets.filter((p) => p.id !== presetId);
+    setPresets(updatedPresets);
+
+    const configResult = await window.portwatchAPI.loadConfig();
+    if (configResult.success && configResult.data) {
+      await window.portwatchAPI.saveConfig({
+        ...configResult.data,
+        presets: updatedPresets,
+      });
+    }
+
+    if (activePresetId === presetId) {
+      setActivePresetId(null);
+    }
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchText('');
+    setPortRangeMin('');
+    setPortRangeMax('');
+    setActivePresetId(null);
+  };
 
   // Kill process
   const handleKill = async (port: number) => {
@@ -108,6 +234,57 @@ function App() {
             </button>
           </div>
         </div>
+
+        {/* Preset Bar */}
+        {presets.length > 0 && (
+          <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
+            {presets.map((preset) => (
+              <div key={preset.id} className="flex items-center gap-1">
+                <button
+                  onClick={() => applyPreset(preset)}
+                  className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-colors ${
+                    activePresetId === preset.id
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                  title={preset.description}
+                >
+                  {preset.name}
+                </button>
+                {!['web-dev', 'inngest', 'databases'].includes(preset.id) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deletePreset(preset.id);
+                    }}
+                    className="px-1 text-xs text-gray-400 hover:text-red-600"
+                    title="Delete preset"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            {(portRangeMin || portRangeMax || searchText) && (
+              <button
+                onClick={saveCurrentAsPreset}
+                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full hover:bg-green-200 whitespace-nowrap"
+                title="Save current filters as preset"
+              >
+                + Save
+              </button>
+            )}
+            {(portRangeMin || portRangeMax || searchText || activePresetId) && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 whitespace-nowrap"
+                title="Clear all filters"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Search */}
         <div className="flex gap-2 mb-2">

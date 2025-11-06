@@ -47,11 +47,22 @@ export interface RefreshConfig {
 }
 
 /**
+ * Filter preset for quick access
+ */
+export interface FilterPreset {
+  id: string;
+  name: string;
+  description?: string;
+  filters: FilterOptions;
+}
+
+/**
  * User preferences
  */
 export interface UserConfig {
   display: DisplayConfig;
   refresh: RefreshConfig;
+  presets: FilterPreset[];
 }
 
 // Zod schemas for validation
@@ -92,9 +103,17 @@ export const RefreshConfigSchema = z.object({
   intervalMs: z.number().int().positive(),
 });
 
+export const FilterPresetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  filters: FilterOptionsSchema,
+});
+
 export const UserConfigSchema = z.object({
   display: DisplayConfigSchema,
   refresh: RefreshConfigSchema,
+  presets: z.array(FilterPresetSchema),
 });
 
 // Default configurations
@@ -113,7 +132,35 @@ export const DEFAULT_REFRESH_CONFIG: RefreshConfig = {
   intervalMs: 5000,
 };
 
+export const DEFAULT_PRESETS: FilterPreset[] = [
+  {
+    id: 'web-dev',
+    name: 'Web Dev',
+    description: 'Common web development ports (3000-3100)',
+    filters: {
+      portRange: { min: 3000, max: 3100 },
+    },
+  },
+  {
+    id: 'inngest',
+    name: 'Inngest',
+    description: 'Inngest ports (8288-8300)',
+    filters: {
+      portRange: { min: 8288, max: 8300 },
+    },
+  },
+  {
+    id: 'databases',
+    name: 'Databases',
+    description: 'Common database ports (PostgreSQL, MySQL, MongoDB, Redis)',
+    filters: {
+      portRange: { min: 3306, max: 27017 },
+    },
+  },
+];
+
 export const DEFAULT_USER_CONFIG: UserConfig = {
   display: DEFAULT_DISPLAY_CONFIG,
   refresh: DEFAULT_REFRESH_CONFIG,
+  presets: DEFAULT_PRESETS,
 };
