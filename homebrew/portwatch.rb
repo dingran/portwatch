@@ -1,14 +1,13 @@
 cask "portwatch" do
   version "1.0.0"
 
-  # Update these SHA256 checksums after creating a GitHub release
   on_arm do
-    sha256 "REPLACE_WITH_ARM64_SHA256"
+    sha256 "9a5d2af0a2abafd76b379ce49e7f30bab159ab1e3d569c13b8554d21e0cede7e"
     url "https://github.com/dingran/portwatch/releases/download/v#{version}/PortWatch-#{version}-arm64-mac.zip"
   end
 
   on_intel do
-    sha256 "REPLACE_WITH_INTEL_SHA256"
+    sha256 "615faa1b62f932a8a6f35d901f1f39faa8f15966b88a6b90491f3c46c6365d2e"
     url "https://github.com/dingran/portwatch/releases/download/v#{version}/PortWatch-#{version}-mac.zip"
   end
 
