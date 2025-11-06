@@ -26,9 +26,18 @@ function getMenubarIcon(): nativeImage {
     return nativeImage.createFromPath(iconPath);
   }
 
-  console.warn('⚠ Menubar icon not found, using empty placeholder');
+  console.warn('⚠ Menubar icon not found, using text fallback');
   console.warn('  Create icon at:', iconPath);
-  return nativeImage.createEmpty();
+
+  // Create a simple text-based icon as fallback
+  // This creates a 16x16 black square that will be visible in the menu bar
+  const canvas = `
+    <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+      <text x="8" y="12" font-size="12" text-anchor="middle" fill="black">P</text>
+    </svg>
+  `;
+  const dataUrl = 'data:image/svg+xml;base64,' + Buffer.from(canvas).toString('base64');
+  return nativeImage.createFromDataURL(dataUrl);
 }
 
 // Create menubar app
@@ -66,6 +75,15 @@ app.whenReady().then(() => {
 
   mb.on('ready', () => {
     console.log('✓ PortWatch menubar is ready');
+
+    // In development mode, show the window once
+    if (process.env.NODE_ENV === 'development' && mb.window) {
+      console.log('🔍 Development mode: showing window');
+      mb.showWindow();
+
+      // Make the window not auto-hide on blur in dev mode
+      mb.window.setAlwaysOnTop(false);
+    }
   });
 
   mb.on('show', () => {
@@ -74,6 +92,7 @@ app.whenReady().then(() => {
 
   mb.on('hide', () => {
     console.log('📁 Menubar window hidden');
+    // Don't re-show automatically - let it hide normally
   });
 
   mb.on('after-create-window', () => {

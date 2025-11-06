@@ -198,7 +198,7 @@ function App() {
                       {port.processName}
                     </div>
                     <div className="text-xs text-gray-500 truncate">
-                      {port.workingDirectory.replace(process.env.HOME || '', '~')}
+                      {port.workingDirectory.replace(/^\/Users\/[^/]+/, '~')}
                     </div>
                   </div>
                   <button

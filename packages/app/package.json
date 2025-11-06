@@ -4,6 +4,7 @@
   "description": "PortWatch menu bar app",
   "main": "dist/main/main.js",
   "scripts": {
+    "postinstall": "chmod +x ../../node_modules/7zip-bin/mac/*/7za || true",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
