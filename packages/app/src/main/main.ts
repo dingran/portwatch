@@ -17,13 +17,28 @@ let mb: Menubar;
  * Load menubar icon with graceful fallback
  */
 function getMenubarIcon(): nativeImage {
-  const iconPath = path.join(__dirname, '..', '..', 'assets', 'IconTemplate.png');
+  // In production, assets are in app.getPath('userData')/../Resources/assets
+  // In development, they're relative to __dirname
+  let iconPath: string;
+
+  if (app.isPackaged) {
+    // Production: assets are in Contents/Resources/assets/
+    iconPath = path.join(process.resourcesPath, 'assets', 'IconTemplate.png');
+  } else {
+    // Development: relative to dist/main
+    iconPath = path.join(__dirname, '..', '..', 'assets', 'IconTemplate.png');
+  }
 
   console.log('Looking for icon at:', iconPath);
+  console.log('  app.isPackaged:', app.isPackaged);
+  console.log('  process.resourcesPath:', process.resourcesPath);
 
   if (fs.existsSync(iconPath)) {
     console.log('✓ Icon found, loading from disk');
-    return nativeImage.createFromPath(iconPath);
+    const img = nativeImage.createFromPath(iconPath);
+    // Mark as template image for macOS menu bar
+    img.setTemplateImage(true);
+    return img;
   }
 
   console.warn('⚠ Menubar icon not found, using text fallback');
@@ -37,7 +52,9 @@ function getMenubarIcon(): nativeImage {
     </svg>
   `;
   const dataUrl = 'data:image/svg+xml;base64,' + Buffer.from(canvas).toString('base64');
-  return nativeImage.createFromDataURL(dataUrl);
+  const img = nativeImage.createFromDataURL(dataUrl);
+  img.setTemplateImage(true);
+  return img;
 }
 
 // Create menubar app
