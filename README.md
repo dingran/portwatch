@@ -35,12 +35,22 @@ npx @portwatch/cli list
 
 ### Menu Bar App
 
-```bash
-# Install via Homebrew (coming soon)
-brew install --cask portwatch
+**Download from GitHub Releases:**
 
-# Or download from GitHub Releases
+1. Visit [Releases](https://github.com/dingran/portwatch/releases)
+2. Download the appropriate file for your Mac:
+   - **Apple Silicon (M1/M2/M3)**: `PortWatch-1.0.0-arm64.dmg`
+   - **Intel**: `PortWatch-1.0.0.dmg`
+3. Open the DMG and drag PortWatch to Applications
+4. **First launch**: Right-click the app → Open (due to unsigned app warning)
+
+**Via Homebrew** (after creating a tap):
+```bash
+brew tap dingran/tap
+brew install --cask dingran/tap/portwatch
 ```
+
+**Note**: The app is not notarized, so macOS will show a security warning on first launch. See [RELEASE.md](RELEASE.md) for details.
 
 ## Usage
 
@@ -203,16 +213,18 @@ User preferences are stored in `~/.portwatch/config.json`:
 
 ## TODO
 
-- [ ] Create proper menu bar icon
-- [ ] Add electron-builder configuration
-- [ ] Test Electron app build
-- [ ] Create Homebrew tap
+- [x] Create proper menu bar icon
+- [x] Add electron-builder configuration
+- [x] Test Electron app build
+- [ ] Create Homebrew tap (template ready in `homebrew/portwatch.rb`)
+- [ ] Create GitHub release with v1.0.0 (see [RELEASE.md](RELEASE.md))
 - [ ] Publish CLI to npm
 - [ ] Add tests
 - [ ] CI/CD with GitHub Actions
 - [ ] Better error handling
 - [ ] Add app settings UI
 - [ ] Support more platforms (Linux, Windows)
+- [ ] Code signing & notarization (requires Apple Developer account)
 
 ## Contributing
 
