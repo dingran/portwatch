@@ -251,7 +251,7 @@ function App() {
                 >
                   {preset.name}
                 </button>
-                {!['web-dev', 'inngest', 'databases'].includes(preset.id) && (
+                {!['web-dev', 'inngest', 'postgres'].includes(preset.id) && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
