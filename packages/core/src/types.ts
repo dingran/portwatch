@@ -152,9 +152,9 @@ export const DEFAULT_PRESETS: FilterPreset[] = [
   {
     id: 'databases',
     name: 'Databases',
-    description: 'Common database ports (PostgreSQL, MySQL, MongoDB, Redis)',
+    description: 'Common database ports (MySQL 3306, PostgreSQL 5432, Redis 6379)',
     filters: {
-      portRange: { min: 3306, max: 27017 },
+      portRange: { min: 3306, max: 6379 },
     },
   },
 ];
