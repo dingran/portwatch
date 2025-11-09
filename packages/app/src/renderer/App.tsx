@@ -74,7 +74,7 @@ function App() {
   }, [autoRefresh, searchText, portRangeMin, portRangeMax, searchMode]);
 
   // Apply a preset
-  const applyPreset = (preset: FilterPreset) => {
+  const applyPreset = async (preset: FilterPreset) => {
     const { filters } = preset;
 
     // Clear all filters first
@@ -104,6 +104,9 @@ function App() {
     }
 
     setActivePresetId(preset.id);
+
+    // Immediately fetch with new filters
+    await fetchPorts();
   };
 
   // Save current filters as preset
@@ -177,11 +180,15 @@ function App() {
   };
 
   // Clear all filters
-  const clearFilters = () => {
+  const clearFilters = async () => {
     setSearchText('');
     setPortRangeMin('');
     setPortRangeMax('');
     setActivePresetId(null);
+
+    // Immediately fetch with cleared filters
+    // Use setTimeout to ensure state updates have been processed
+    setTimeout(() => fetchPorts(), 0);
   };
 
   // Kill process
@@ -337,6 +344,8 @@ function App() {
                     onClick={() => {
                       setPortRangeMin('');
                       setPortRangeMax('');
+                      // Immediately refresh results
+                      setTimeout(() => fetchPorts(), 0);
                     }}
                     className="px-2 py-1 text-xs text-gray-600 hover:text-red-600"
                     title="Clear"
