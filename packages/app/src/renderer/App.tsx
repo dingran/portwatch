@@ -73,8 +73,18 @@ function App() {
     }
   }, [autoRefresh, searchText, portRangeMin, portRangeMax, searchMode]);
 
-  // Apply a preset
+  // Apply a preset (or toggle it off if already active)
   const applyPreset = async (preset: FilterPreset) => {
+    // If clicking the same preset, toggle it off
+    if (activePresetId === preset.id) {
+      setSearchText('');
+      setPortRangeMin('');
+      setPortRangeMax('');
+      setActivePresetId(null);
+      setTimeout(() => fetchPorts(), 0);
+      return;
+    }
+
     const { filters } = preset;
 
     // Clear all filters first
