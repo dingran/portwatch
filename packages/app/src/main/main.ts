@@ -1,4 +1,4 @@
-import { app, ipcMain, nativeImage } from 'electron';
+import { app, ipcMain, nativeImage, Menu } from 'electron';
 import { menubar, Menubar } from 'menubar';
 import path from 'path';
 import fs from 'fs';
@@ -12,6 +12,39 @@ import {
 } from '@portwatch/core';
 
 let mb: Menubar;
+
+/**
+ * Update the context menu for the tray icon
+ */
+function updateContextMenu() {
+  if (!mb || !mb.tray) return;
+
+  const loginItemSettings = app.getLoginItemSettings();
+  const openAtLogin = loginItemSettings.openAtLogin;
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Launch at Login',
+      type: 'checkbox',
+      checked: openAtLogin,
+      click: () => {
+        app.setLoginItemSettings({
+          openAtLogin: !openAtLogin,
+        });
+        updateContextMenu();
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit PortWatch',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  mb.tray.setContextMenu(contextMenu);
+}
 
 /**
  * Load menubar icon with graceful fallback
@@ -92,6 +125,9 @@ app.whenReady().then(() => {
 
   mb.on('ready', () => {
     console.log('✓ PortWatch menubar is ready');
+
+    // Set up context menu
+    updateContextMenu();
 
     // In development mode, show the window once
     if (process.env.NODE_ENV === 'development' && mb.window) {
