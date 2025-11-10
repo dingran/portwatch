@@ -4,6 +4,7 @@ import { PortInfo, FilterOptions, FilterPreset } from '@portwatch/core';
 function App() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
   const [cachedAllPorts, setCachedAllPorts] = useState<PortInfo[]>([]); // Cache for instant filtering
+  const [presetResultsCache, setPresetResultsCache] = useState<Record<string, PortInfo[]>>({}); // Cache results per preset
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -85,7 +86,7 @@ function App() {
   };
 
   // Fetch ports with filters (can pass explicit filters or use state)
-  const fetchPorts = async (explicitFilters?: FilterOptions) => {
+  const fetchPorts = async (explicitFilters?: FilterOptions, cachePresetId?: string) => {
     // Track this fetch with an ID to prevent race conditions
     const fetchId = ++latestFetchId.current;
 
@@ -127,6 +128,14 @@ function App() {
           // Update cache when fetching all ports (no filters)
           if (Object.keys(filters).length === 0) {
             setCachedAllPorts(result.data);
+          }
+
+          // Update preset cache if this was a preset fetch
+          if (cachePresetId) {
+            setPresetResultsCache(prev => ({
+              ...prev,
+              [cachePresetId]: result.data!
+            }));
           }
         } else {
           console.error('Failed to fetch ports:', result.message || 'Unknown error');
@@ -189,6 +198,14 @@ function App() {
           const filters = getCurrentFilters();
           const filtered = filterPortsLocally(result.data, filters);
           setPorts(filtered);
+
+          // Update preset cache if a preset is active
+          if (activePresetId) {
+            setPresetResultsCache(prev => ({
+              ...prev,
+              [activePresetId]: filtered
+            }));
+          }
         }
       }, 5000);
       return () => clearInterval(interval);
@@ -222,10 +239,12 @@ function App() {
 
     const { filters } = preset;
 
-    // INSTANT: Show filtered cached results immediately
-    if (cachedAllPorts.length > 0) {
-      const filteredCache = filterPortsLocally(cachedAllPorts, filters);
-      setPorts(filteredCache);
+    // INSTANT: Show cached results for this preset if available
+    if (presetResultsCache[preset.id] !== undefined) {
+      setPorts(presetResultsCache[preset.id]);
+    } else {
+      // No cache for this preset yet, clear display
+      setPorts([]);
     }
 
     // Update activeFilters and activePresetId FIRST (single source of truth)
@@ -258,8 +277,9 @@ function App() {
       setSearchMode('substring');
     }
 
-    // Fetch with preset filters
-    await fetchPorts(filters);
+    // Fetch with preset filters and cache the results
+    await fetchPorts(filters, preset.id);
+
     setIsApplyingPreset(false);
   };
 
