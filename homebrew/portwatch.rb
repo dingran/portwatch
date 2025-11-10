@@ -1,13 +1,13 @@
 cask "portwatch" do
-  version "1.0.0"
+  version "1.1.0"
 
   on_arm do
-    sha256 "9a5d2af0a2abafd76b379ce49e7f30bab159ab1e3d569c13b8554d21e0cede7e"
+    sha256 "599ddae8310ed25585ceca70cfb900384839f929870ed0e28c42e07b41317e1a"
     url "https://github.com/dingran/portwatch/releases/download/v#{version}/PortWatch-#{version}-arm64-mac.zip"
   end
 
   on_intel do
-    sha256 "615faa1b62f932a8a6f35d901f1f39faa8f15966b88a6b90491f3c46c6365d2e"
+    sha256 "5c6344dd11a5d6999639f44d07797fd4e0d514c246f736b5279234940b49a46d"
     url "https://github.com/dingran/portwatch/releases/download/v#{version}/PortWatch-#{version}-mac.zip"
   end
 
