@@ -17,27 +17,33 @@ function App() {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
-  // Fetch ports with filters
-  const fetchPorts = async () => {
+  // Fetch ports with filters (can pass explicit filters or use state)
+  const fetchPorts = async (explicitFilters?: FilterOptions) => {
     setLoading(true);
     try {
-      const filters: FilterOptions = {};
+      let filters: FilterOptions = {};
 
-      // Port range filter
-      if (portRangeMin && portRangeMax) {
-        const min = parseInt(portRangeMin, 10);
-        const max = parseInt(portRangeMax, 10);
-        if (!isNaN(min) && !isNaN(max) && min <= max) {
-          filters.portRange = { min, max };
+      if (explicitFilters) {
+        // Use explicitly passed filters
+        filters = explicitFilters;
+      } else {
+        // Build filters from state
+        // Port range filter
+        if (portRangeMin && portRangeMax) {
+          const min = parseInt(portRangeMin, 10);
+          const max = parseInt(portRangeMax, 10);
+          if (!isNaN(min) && !isNaN(max) && min <= max) {
+            filters.portRange = { min, max };
+          }
         }
-      }
 
-      // Process name filter
-      if (searchText) {
-        if (searchMode === 'prefix') {
-          filters.processPrefix = searchText;
-        } else {
-          filters.processName = searchText;
+        // Process name filter
+        if (searchText) {
+          if (searchMode === 'prefix') {
+            filters.processPrefix = searchText;
+          } else {
+            filters.processName = searchText;
+          }
         }
       }
 
@@ -81,30 +87,31 @@ function App() {
       setPortRangeMin('');
       setPortRangeMax('');
       setActivePresetId(null);
-      setTimeout(() => fetchPorts(), 0);
+      // Fetch with empty filters
+      await fetchPorts({});
       return;
     }
 
     const { filters } = preset;
 
-    // Clear all filters first
+    // Update UI state
     setSearchText('');
     setPortRangeMin('');
     setPortRangeMax('');
 
-    // Apply port range
+    // Apply port range to UI
     if (filters.portRange) {
       setPortRangeMin(filters.portRange.min.toString());
       setPortRangeMax(filters.portRange.max.toString());
     }
 
-    // Apply exact port
+    // Apply exact port to UI
     if (filters.port !== undefined) {
       setPortRangeMin(filters.port.toString());
       setPortRangeMax(filters.port.toString());
     }
 
-    // Apply process filter
+    // Apply process filter to UI
     if (filters.processPrefix) {
       setSearchText(filters.processPrefix);
       setSearchMode('prefix');
@@ -115,8 +122,8 @@ function App() {
 
     setActivePresetId(preset.id);
 
-    // Immediately fetch with new filters
-    await fetchPorts();
+    // Immediately fetch with preset filters (don't wait for state)
+    await fetchPorts(filters);
   };
 
   // Save current filters as preset
@@ -196,9 +203,8 @@ function App() {
     setPortRangeMax('');
     setActivePresetId(null);
 
-    // Immediately fetch with cleared filters
-    // Use setTimeout to ensure state updates have been processed
-    setTimeout(() => fetchPorts(), 0);
+    // Immediately fetch with empty filters
+    await fetchPorts({});
   };
 
   // Kill process
@@ -351,11 +357,23 @@ function App() {
                 />
                 {(portRangeMin || portRangeMax) && (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setPortRangeMin('');
                       setPortRangeMax('');
-                      // Immediately refresh results
-                      setTimeout(() => fetchPorts(), 0);
+                      setActivePresetId(null);
+
+                      // Build filters without port range
+                      const filters: FilterOptions = {};
+                      if (searchText) {
+                        if (searchMode === 'prefix') {
+                          filters.processPrefix = searchText;
+                        } else {
+                          filters.processName = searchText;
+                        }
+                      }
+
+                      // Immediately refresh with updated filters
+                      await fetchPorts(filters);
                     }}
                     className="px-2 py-1 text-xs text-gray-600 hover:text-red-600"
                     title="Clear"
