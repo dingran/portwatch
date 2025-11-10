@@ -1,0 +1,31 @@
+{
+  "name": "@portwatch/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for PortWatch - query port and process information",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "portwatch-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "port",
+    "process",
+    "monitoring"
+  ],
+  "author": "dingran",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@portwatch/core": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

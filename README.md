@@ -21,6 +21,12 @@ PortWatch helps you quickly see which processes are running on which ports on yo
 - ⚡ **One-click kill** - Stop processes with a click
 - 🎨 **Native UI** - Clean, macOS-style interface
 
+### MCP Server
+- 🤖 **Claude integration** - Use with Claude Desktop or other MCP clients
+- 🔍 **Query ports** - Ask Claude about running processes
+- 📊 **Filter results** - Search by port, PID, process name, etc.
+- ⚡ **Control processes** - Kill processes through Claude
+
 ## Installation
 
 ### CLI Tool
@@ -51,6 +57,52 @@ brew install --cask dingran/tap/portwatch
 ```
 
 **Note**: The app is not notarized, so macOS will show a security warning on first launch. See [RELEASE.md](RELEASE.md) for details.
+
+### MCP Server
+
+The MCP server allows Claude and other AI assistants to query port and process information.
+
+**Setup with Claude Code:**
+
+1. Build the MCP server:
+   ```bash
+   git clone https://github.com/dingran/portwatch.git
+   cd portwatch
+   npm install
+   npm run build
+   ```
+
+2. Add the MCP server:
+   ```bash
+   cd packages/mcp-server
+   claude mcp add portwatch node $(pwd)/dist/index.js
+   ```
+
+3. Verify it's connected:
+   ```bash
+   claude mcp list
+   ```
+
+4. Start a new conversation with Claude Code and ask things like:
+   - "What processes are running on ports 3000-3100?"
+   - "What's on port 5432?"
+   - "Kill the process on port 8080"
+
+**Setup with Claude Desktop:**
+
+1. Build the MCP server (same as above)
+
+2. Get your config:
+   ```bash
+   cd packages/mcp-server
+   ./get-config.sh
+   ```
+
+3. Add the output to `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+4. Restart Claude Desktop
+
+See [packages/mcp-server/README.md](packages/mcp-server/README.md) for detailed usage and available tools.
 
 ## Usage
 
@@ -96,7 +148,8 @@ portwatch/
 ├── packages/
 │   ├── core/           # Shared library
 │   ├── cli/            # CLI tool
-│   └── app/            # Electron menu bar app
+│   ├── app/            # Electron menu bar app
+│   └── mcp-server/     # MCP server for Claude
 ├── package.json        # Workspace root
 └── README.md
 ```

@@ -254,14 +254,24 @@ function App() {
     await fetchPorts({});
   };
 
-  // Kill process
-  const handleKill = async (port: number) => {
-    if (confirm(`Kill process on port ${port}?`)) {
-      const result = await window.portwatchAPI.killByPort(port, false);
+  // Kill process (graceful SIGTERM)
+  const handleKill = async (port: number, force: boolean = false) => {
+    const action = force ? 'Force kill' : 'Kill';
+    if (confirm(`${action} process on port ${port}?${force ? '\n\n(Force kill will not allow the process to clean up gracefully)' : ''}`)) {
+      // Optimistically remove from UI for instant feedback
+      setPorts(prevPorts => prevPorts.filter(p => p.port !== port));
+
+      const result = await window.portwatchAPI.killByPort(port, force);
+
       if (result.success) {
-        fetchPorts();
+        // Wait for process to die
+        await new Promise(resolve => setTimeout(resolve, force ? 300 : 500));
+        // Refresh to verify
+        await fetchPorts();
       } else {
-        alert(`Failed to kill process: ${result.message}`);
+        // Kill failed, restore UI
+        alert(`Failed to ${action.toLowerCase()} process: ${result.message}`);
+        await fetchPorts();
       }
     }
   };
@@ -462,12 +472,22 @@ function App() {
                       {port.workingDirectory.replace(/^\/Users\/[^/]+/, '~')}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleKill(port.port)}
-                    className="ml-2 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
-                  >
-                    Kill
-                  </button>
+                  <div className="ml-2 flex gap-1">
+                    <button
+                      onClick={() => handleKill(port.port, false)}
+                      className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Kill process (SIGTERM - allows cleanup)"
+                    >
+                      Kill
+                    </button>
+                    <button
+                      onClick={() => handleKill(port.port, true)}
+                      className="px-2 py-1 text-xs text-red-700 bg-red-50 hover:bg-red-100 rounded transition-colors font-semibold"
+                      title="Force kill process (SIGKILL - immediate)"
+                    >
+                      Force
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
