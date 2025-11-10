@@ -126,8 +126,18 @@ app.whenReady().then(() => {
   mb.on('ready', () => {
     console.log('✓ PortWatch menubar is ready');
 
-    // Set up context menu
-    updateContextMenu();
+    if (mb.tray) {
+      // Don't set context menu initially - only on right-click
+      // This prevents it from showing on left-click
+
+      // Right click: show context menu
+      mb.tray.on('right-click', () => {
+        updateContextMenu();
+        if (mb.tray) {
+          mb.tray.popUpContextMenu();
+        }
+      });
+    }
 
     // In development mode, show the window once
     if (process.env.NODE_ENV === 'development' && mb.window) {
