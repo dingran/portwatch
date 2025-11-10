@@ -3,6 +3,7 @@ import { PortInfo, FilterOptions, FilterPreset } from '@portwatch/core';
 
 function App() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
+  const [cachedAllPorts, setCachedAllPorts] = useState<PortInfo[]>([]); // Cache for instant filtering
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -17,13 +18,42 @@ function App() {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
+  // Client-side filtering for instant results
+  const filterPortsLocally = (allPorts: PortInfo[], filters: FilterOptions): PortInfo[] => {
+    return allPorts.filter(port => {
+      // Port range filter
+      if (filters.portRange) {
+        const { min, max } = filters.portRange;
+        if (port.port < min || port.port > max) return false;
+      }
+
+      // Exact port filter
+      if (filters.port !== undefined && port.port !== filters.port) {
+        return false;
+      }
+
+      // Process name filters
+      if (filters.processPrefix) {
+        if (!port.processName.toLowerCase().startsWith(filters.processPrefix.toLowerCase())) {
+          return false;
+        }
+      } else if (filters.processName) {
+        if (!port.processName.toLowerCase().includes(filters.processName.toLowerCase())) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
   // Fetch ports with filters (can pass explicit filters or use state)
   const fetchPorts = async (explicitFilters?: FilterOptions) => {
     setLoading(true);
     try {
       let filters: FilterOptions = {};
 
-      if (explicitFilters) {
+      if (explicitFilters !== undefined) {
         // Use explicitly passed filters
         filters = explicitFilters;
       } else {
@@ -50,6 +80,11 @@ function App() {
       const result = await window.portwatchAPI.scanPorts(filters);
       if (result.success && result.data) {
         setPorts(result.data);
+
+        // Update cache when fetching all ports (no filters)
+        if (Object.keys(filters).length === 0) {
+          setCachedAllPorts(result.data);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch ports:', error);
@@ -87,7 +122,13 @@ function App() {
       setPortRangeMin('');
       setPortRangeMax('');
       setActivePresetId(null);
-      // Fetch with empty filters
+
+      // Show cached all ports instantly
+      if (cachedAllPorts.length > 0) {
+        setPorts(cachedAllPorts);
+      }
+
+      // Fetch fresh data in background
       await fetchPorts({});
       return;
     }
@@ -122,7 +163,13 @@ function App() {
 
     setActivePresetId(preset.id);
 
-    // Immediately fetch with preset filters (don't wait for state)
+    // INSTANT: Show filtered cached results immediately
+    if (cachedAllPorts.length > 0) {
+      const filteredCache = filterPortsLocally(cachedAllPorts, filters);
+      setPorts(filteredCache);
+    }
+
+    // BACKGROUND: Fetch fresh data and update
     await fetchPorts(filters);
   };
 
