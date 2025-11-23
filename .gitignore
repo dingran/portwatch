@@ -34,6 +34,9 @@ yarn-error.log*
 
 # Testing
 coverage/
+packages/app/playwright-report/
+packages/app/test-results/
+.mcp.json
 
 # macOS
 .DS_Store
