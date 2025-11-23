@@ -1,6 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { PortInfo, FilterOptions, PortInfoSchema } from './types';
+import { PortInfo, FilterOptions } from './types';
 
 const execAsync = promisify(exec);
 
@@ -17,7 +17,7 @@ export async function scanPorts(filters?: FilterOptions): Promise<PortInfo[]> {
 
     for (const line of lines) {
       const portInfo = parseLsofLine(line);
-      if (portInfo && matchesFilters(portInfo, filters)) {
+      if (portInfo && matchesBasicFilters(portInfo, filters)) {
         portInfos.push(portInfo);
       }
     }
@@ -126,12 +126,21 @@ export async function enrichPortInfo(portInfo: PortInfo): Promise<PortInfo> {
  * Scans ports and enriches all results
  */
 export async function scanPortsEnriched(filters?: FilterOptions): Promise<PortInfo[]> {
-  const ports = await scanPorts(filters);
+  // Apply only filters that do not require enrichment
+  const { workingDirectory, ...basicFilters } = filters || {};
+  const ports = await scanPorts(basicFilters);
 
   // Enrich all port infos in parallel
   const enriched = await Promise.all(
     ports.map(port => enrichPortInfo(port))
   );
+
+  // Apply working-directory filter after enrichment (now we have the data)
+  if (workingDirectory) {
+    return enriched.filter((port) =>
+      port.workingDirectory.toLowerCase().includes(workingDirectory.toLowerCase())
+    );
+  }
 
   return enriched;
 }
@@ -139,7 +148,7 @@ export async function scanPortsEnriched(filters?: FilterOptions): Promise<PortIn
 /**
  * Checks if a port info matches the given filters
  */
-function matchesFilters(portInfo: PortInfo, filters?: FilterOptions): boolean {
+function matchesBasicFilters(portInfo: PortInfo, filters?: FilterOptions): boolean {
   if (!filters) {
     return true;
   }
@@ -166,11 +175,6 @@ function matchesFilters(portInfo: PortInfo, filters?: FilterOptions): boolean {
 
   if (filters.processPrefix !== undefined &&
       !portInfo.processName.toLowerCase().startsWith(filters.processPrefix.toLowerCase())) {
-    return false;
-  }
-
-  if (filters.workingDirectory !== undefined &&
-      !portInfo.workingDirectory.toLowerCase().includes(filters.workingDirectory.toLowerCase())) {
     return false;
   }
 

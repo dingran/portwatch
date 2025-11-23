@@ -141,6 +141,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         if (args?.portRangeMin !== undefined && args?.portRangeMax !== undefined) {
+          if (typeof args.portRangeMin !== 'number' || typeof args.portRangeMax !== 'number') {
+            throw new Error('portRangeMin and portRangeMax must be numbers');
+          }
+          if (args.portRangeMin < 0 || args.portRangeMax > 65535 || args.portRangeMin > args.portRangeMax) {
+            throw new Error('Invalid port range; ensure 0 <= min <= max <= 65535');
+          }
           filters.portRange = {
             min: args.portRangeMin as number,
             max: args.portRangeMax as number,
@@ -176,7 +182,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_port_info': {
-        if (!args?.port) {
+        if (args?.port === undefined || args?.port === null) {
           throw new Error('Port parameter is required');
         }
 
@@ -206,7 +212,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'kill_by_port': {
-        if (!args?.port) {
+        if (args?.port === undefined || args?.port === null) {
           throw new Error('Port parameter is required');
         }
 
@@ -224,7 +230,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'kill_by_pid': {
-        if (!args?.pid) {
+        if (args?.pid === undefined || args?.pid === null) {
           throw new Error('PID parameter is required');
         }
 

@@ -28,12 +28,19 @@ export const killCommand = new Command('kill')
       } else if (options.pid) {
         result = await killProcessByPid(targetNum, options.force);
       } else {
-        // Auto-detect: if >= 1024, assume port, otherwise PID
-        if (targetNum >= 1024) {
-          spinner.text = 'Interpreting as port number...';
+        // Auto-detect: try port first (valid port range), then fall back to PID
+        const inPortRange = targetNum >= 0 && targetNum <= 65535;
+
+        if (inPortRange) {
+          spinner.text = 'Trying port...';
           result = await killProcessByPort(targetNum, options.force);
+
+          if (!result.success && result.message.includes('No process found on port')) {
+            spinner.text = 'No listener found, trying PID...';
+            result = await killProcessByPid(targetNum, options.force);
+          }
         } else {
-          spinner.text = 'Interpreting as PID...';
+          spinner.text = 'Treating as PID...';
           result = await killProcessByPid(targetNum, options.force);
         }
       }

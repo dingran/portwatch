@@ -142,11 +142,11 @@ export const DEFAULT_PRESETS: FilterPreset[] = [
     },
   },
   {
-    id: 'inngest',
-    name: 'Inngest',
-    description: 'Inngest ports (8288-8300)',
+    id: 'vite',
+    name: 'Vite',
+    description: 'Vite dev server (port 5173)',
     filters: {
-      portRange: { min: 8288, max: 8300 },
+      port: 5173,
     },
   },
   {

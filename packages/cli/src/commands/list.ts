@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import ora from 'ora';
-import { scanPortsEnriched, FilterOptions, loadConfig } from '@portwatch/core';
-import { formatPortTable, formatError, formatJson } from '../utils/formatter';
+import { scanPorts, scanPortsEnriched, FilterOptions, loadConfig } from '@portwatch/core';
+import { formatPortTable, formatError, formatJson, formatWarning } from '../utils/formatter';
 
 export const listCommand = new Command('list')
   .alias('ls')
@@ -35,8 +35,16 @@ export const listCommand = new Command('list')
       if (options.prefix) filters.processPrefix = options.prefix;
       if (options.dir) filters.workingDirectory = options.dir;
 
-      // Scan ports
-      const ports = await scanPortsEnriched(filters);
+      const needsEnrichment = options.enriched !== false || !!filters.workingDirectory;
+
+      if (filters.workingDirectory && options.enriched === false) {
+        console.error(formatWarning('Working directory filtering requires enrichment; ignoring --no-enriched.'));
+      }
+
+      // Scan ports (honor --no-enriched unless working-directory filtering is requested)
+      const ports = needsEnrichment
+        ? await scanPortsEnriched(filters)
+        : await scanPorts(filters);
 
       spinner.stop();
 

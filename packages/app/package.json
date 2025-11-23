@@ -2,6 +2,7 @@
   "name": "@portwatch/app",
   "version": "1.1.0",
   "description": "PortWatch menu bar app",
+  "type": "module",
   "main": "dist/main/main.js",
   "scripts": {
     "postinstall": "chmod +x ../../node_modules/7zip-bin/mac/*/7za || true",
