@@ -114,7 +114,7 @@ app.whenReady().then(() => {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        preload: path.join(__dirname, '..', 'preload', 'preload.js'),
+        preload: path.join(__dirname, '..', 'preload', 'preload.cjs'),
       },
       resizable: false,
       movable: false,
