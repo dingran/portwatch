@@ -59,6 +59,7 @@
     "productName": "PortWatch",
     "electronVersion": "28.3.3",
     "compression": "store",
+    "npmRebuild": false,
     "files": [
       "dist/**/*",
       "package.json"

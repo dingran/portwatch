@@ -1,162 +1,236 @@
-import { useState, useEffect, useRef } from 'react';
-import { PortInfo, FilterOptions, FilterPreset } from '@portwatch/core';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FilterOptions, FilterPreset, PortInfo } from '@portwatch/core';
+
+type SearchMode = 'substring' | 'prefix';
+type ToastTone = 'success' | 'error' | 'info';
+
+interface Toast {
+  message: string;
+  tone: ToastTone;
+}
+
+interface PendingKill {
+  port: PortInfo;
+  force: boolean;
+}
+
+interface IconProps {
+  name: 'filter' | 'refresh' | 'pause' | 'play' | 'x' | 'save' | 'trash' | 'zap' | 'terminal' | 'shield';
+  className?: string;
+}
+
+const BUILT_IN_PRESETS = new Set(['web-dev', 'vite', 'postgres']);
+
+function Icon({ name, className = 'h-4 w-4' }: IconProps) {
+  const paths: Record<IconProps['name'], JSX.Element> = {
+    filter: (
+      <>
+        <path d="M3 5h18" />
+        <path d="M7 12h10" />
+        <path d="M10 19h4" />
+      </>
+    ),
+    refresh: (
+      <>
+        <path d="M21 12a9 9 0 0 1-15.3 6.4" />
+        <path d="M3 12A9 9 0 0 1 18.3 5.6" />
+        <path d="M18 2v4h-4" />
+        <path d="M6 22v-4h4" />
+      </>
+    ),
+    pause: (
+      <>
+        <path d="M8 5v14" />
+        <path d="M16 5v14" />
+      </>
+    ),
+    play: <path d="m8 5 11 7-11 7Z" />,
+    x: (
+      <>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </>
+    ),
+    save: (
+      <>
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+        <path d="M17 21v-8H7v8" />
+        <path d="M7 3v5h8" />
+      </>
+    ),
+    trash: (
+      <>
+        <path d="M3 6h18" />
+        <path d="M8 6V4h8v2" />
+        <path d="M19 6 18 20H6L5 6" />
+        <path d="M10 11v5" />
+        <path d="M14 11v5" />
+      </>
+    ),
+    zap: (
+      <>
+        <path d="M13 2 4 14h7l-1 8 10-13h-7l0-7Z" />
+      </>
+    ),
+    terminal: (
+      <>
+        <path d="m4 17 6-6-6-6" />
+        <path d="M12 19h8" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+        <path d="m9 12 2 2 4-5" />
+      </>
+    ),
+  };
+
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  );
+}
+
+function formatPath(path: string) {
+  return path.replace(/^\/Users\/[^/]+/, '~');
+}
+
+function describeFilters(filters: FilterOptions) {
+  const parts: string[] = [];
+  if (filters.port !== undefined) parts.push(`:${filters.port}`);
+  if (filters.portRange) parts.push(`${filters.portRange.min}-${filters.portRange.max}`);
+  if (filters.processPrefix) parts.push(`${filters.processPrefix}*`);
+  if (filters.processName) parts.push(filters.processName);
+  return parts.length > 0 ? parts.join(' / ') : 'All ports';
+}
+
+function buildFilters(
+  searchText: string,
+  searchMode: SearchMode,
+  portRangeMin: string,
+  portRangeMax: string,
+  activePresetId: string | null,
+  presets: FilterPreset[],
+): FilterOptions {
+  if (activePresetId) {
+    const preset = presets.find((item) => item.id === activePresetId);
+    if (preset) return preset.filters;
+  }
+
+  const filters: FilterOptions = {};
+
+  if (portRangeMin && portRangeMax) {
+    const min = parseInt(portRangeMin, 10);
+    const max = parseInt(portRangeMax, 10);
+    if (!Number.isNaN(min) && !Number.isNaN(max) && min <= max) {
+      filters.portRange = { min, max };
+    }
+  }
+
+  if (searchText.trim()) {
+    if (searchMode === 'prefix') {
+      filters.processPrefix = searchText.trim();
+    } else {
+      filters.processName = searchText.trim();
+    }
+  }
+
+  return filters;
+}
 
 function App() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
-  const [cachedAllPorts, setCachedAllPorts] = useState<PortInfo[]>([]); // Cache for instant filtering
-  const [presetResultsCache, setPresetResultsCache] = useState<Record<string, PortInfo[]>>({}); // Cache results per preset
+  const [cachedAllPorts, setCachedAllPorts] = useState<PortInfo[]>([]);
+  const [presetResultsCache, setPresetResultsCache] = useState<Record<string, PortInfo[]>>({});
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
-
-  // Advanced filters
   const [portRangeMin, setPortRangeMin] = useState('');
   const [portRangeMax, setPortRangeMax] = useState('');
-  const [searchMode, setSearchMode] = useState<'substring' | 'prefix'>('substring');
-
-  // Presets
+  const [searchMode, setSearchMode] = useState<SearchMode>('substring');
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
-  const [activeFilters, setActiveFilters] = useState<FilterOptions>({});
   const [isApplyingPreset, setIsApplyingPreset] = useState(false);
-
-  // Fetch ID tracking to prevent race conditions
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [presetDescription, setPresetDescription] = useState('');
+  const [pendingKill, setPendingKill] = useState<PendingKill | null>(null);
   const latestFetchId = useRef(0);
 
-  // Client-side filtering for instant results
+  const activeFilters = useMemo(
+    () => buildFilters(searchText, searchMode, portRangeMin, portRangeMax, activePresetId, presets),
+    [searchText, searchMode, portRangeMin, portRangeMax, activePresetId, presets],
+  );
+
+  const hasFilters = Object.keys(activeFilters).length > 0;
+  const activePreset = activePresetId ? presets.find((preset) => preset.id === activePresetId) : null;
+  const portsByProcess = new Set(ports.map((port) => port.processName)).size;
+  const portRangeError = portRangeMin && portRangeMax && parseInt(portRangeMin, 10) > parseInt(portRangeMax, 10);
+
+  const showToast = (message: string, tone: ToastTone = 'info') => {
+    setToast({ message, tone });
+    window.setTimeout(() => setToast(null), 3200);
+  };
+
   const filterPortsLocally = (allPorts: PortInfo[], filters: FilterOptions): PortInfo[] => {
-    return allPorts.filter(port => {
-      // Port range filter
+    return allPorts.filter((port) => {
       if (filters.portRange) {
         const { min, max } = filters.portRange;
         if (port.port < min || port.port > max) return false;
       }
 
-      // Exact port filter
-      if (filters.port !== undefined && port.port !== filters.port) {
-        return false;
-      }
+      if (filters.port !== undefined && port.port !== filters.port) return false;
 
-      // Process name filters
       if (filters.processPrefix) {
-        if (!port.processName.toLowerCase().startsWith(filters.processPrefix.toLowerCase())) {
-          return false;
-        }
+        if (!port.processName.toLowerCase().startsWith(filters.processPrefix.toLowerCase())) return false;
       } else if (filters.processName) {
-        if (!port.processName.toLowerCase().includes(filters.processName.toLowerCase())) {
-          return false;
-        }
+        if (!port.processName.toLowerCase().includes(filters.processName.toLowerCase())) return false;
       }
 
       return true;
     });
   };
 
-  // Get current active filters - single source of truth
-  const getCurrentFilters = (): FilterOptions => {
-    // If preset is active, return preset filters directly
-    if (activePresetId && presets.length > 0) {
-      const preset = presets.find(p => p.id === activePresetId);
-      if (preset) {
-        return preset.filters;
-      }
-    }
-
-    // Otherwise build from state
-    const filters: FilterOptions = {};
-
-    if (portRangeMin && portRangeMax) {
-      const min = parseInt(portRangeMin, 10);
-      const max = parseInt(portRangeMax, 10);
-      if (!isNaN(min) && !isNaN(max) && min <= max) {
-        filters.portRange = { min, max };
-      }
-    }
-
-    if (searchText) {
-      if (searchMode === 'prefix') {
-        filters.processPrefix = searchText;
-      } else {
-        filters.processName = searchText;
-      }
-    }
-
-    return filters;
-  };
-
-  // Fetch ports with filters (can pass explicit filters or use state)
   const fetchPorts = async (explicitFilters?: FilterOptions, cachePresetId?: string) => {
-    // Track this fetch with an ID to prevent race conditions
     const fetchId = ++latestFetchId.current;
+    const filters = explicitFilters ?? activeFilters;
 
     setLoading(true);
     try {
-      let filters: FilterOptions = {};
-
-      if (explicitFilters !== undefined) {
-        // Use explicitly passed filters
-        filters = explicitFilters;
-      } else {
-        // Build filters from state
-        // Port range filter
-        if (portRangeMin && portRangeMax) {
-          const min = parseInt(portRangeMin, 10);
-          const max = parseInt(portRangeMax, 10);
-          if (!isNaN(min) && !isNaN(max) && min <= max) {
-            filters.portRange = { min, max };
-          }
-        }
-
-        // Process name filter
-        if (searchText) {
-          if (searchMode === 'prefix') {
-            filters.processPrefix = searchText;
-          } else {
-            filters.processName = searchText;
-          }
-        }
-      }
-
       const result = await window.portwatchAPI.scanPorts(filters);
 
-      // Only update UI if this is still the latest fetch
-      if (fetchId === latestFetchId.current) {
-        if (result.success && result.data) {
-          setPorts(result.data);
+      if (fetchId !== latestFetchId.current) return;
 
-          // Update cache when fetching all ports (no filters)
-          if (Object.keys(filters).length === 0) {
-            setCachedAllPorts(result.data);
-          }
+      if (result.success && result.data) {
+        setPorts(result.data);
 
-          // Update preset cache if this was a preset fetch
-          if (cachePresetId) {
-            setPresetResultsCache(prev => ({
-              ...prev,
-              [cachePresetId]: result.data!
-            }));
-          }
-        } else {
-          console.error('Failed to fetch ports:', result.message || 'Unknown error');
-          setPorts([]); // Set empty array on error so UI updates
+        if (Object.keys(filters).length === 0) {
+          setCachedAllPorts(result.data);
         }
+
+        if (cachePresetId) {
+          setPresetResultsCache((prev) => ({ ...prev, [cachePresetId]: result.data! }));
+        }
+      } else {
+        setPorts([]);
+        showToast(result.error || 'Port scan failed', 'error');
       }
     } catch (error) {
-      console.error('Failed to fetch ports:', error);
-      // Only update on error if this is still the latest fetch
       if (fetchId === latestFetchId.current) {
-        setPorts([]); // Set empty array on error so UI updates
+        setPorts([]);
+        showToast(error instanceof Error ? error.message : 'Port scan failed', 'error');
       }
     } finally {
-      // Only clear loading if this is still the latest fetch
       if (fetchId === latestFetchId.current) {
         setLoading(false);
       }
     }
   };
 
-  // Load presets on mount
   useEffect(() => {
     const loadPresets = async () => {
       const result = await window.portwatchAPI.loadConfig();
@@ -164,447 +238,394 @@ function App() {
         setPresets(result.data.presets);
       }
     };
+
     loadPresets();
   }, []);
 
-  // Initial fetch and auto-refresh
   useEffect(() => {
-    // Skip if we're in the middle of applying a preset
-    if (isApplyingPreset) {
-      return;
-    }
+    if (isApplyingPreset) return;
 
-    // Get current filters (single source of truth)
-    const currentFilters = getCurrentFilters();
+    fetchPorts(activeFilters);
 
-    // Update activeFilters if not already set by applyPreset
-    if (!activePresetId) {
-      setActiveFilters(currentFilters);
-    }
+    if (!autoRefresh) return;
 
-    // Fetch with current filters
-    fetchPorts(currentFilters);
+    const interval = setInterval(async () => {
+      const result = await window.portwatchAPI.scanPorts({});
+      if (!result.success || !result.data) return;
 
-    if (autoRefresh) {
-      const interval = setInterval(async () => {
-        // Fetch ALL ports (no filters) to keep cache fresh
-        const result = await window.portwatchAPI.scanPorts({});
+      setCachedAllPorts(result.data);
+      const filtered = filterPortsLocally(result.data, activeFilters);
+      setPorts(filtered);
 
-        if (result.success && result.data) {
-          // Update cache with all ports
-          setCachedAllPorts(result.data);
+      if (activePresetId) {
+        setPresetResultsCache((prev) => ({ ...prev, [activePresetId]: filtered }));
+      }
+    }, 5000);
 
-          // Apply current filters client-side for instant update
-          const filters = getCurrentFilters();
-          const filtered = filterPortsLocally(result.data, filters);
-          setPorts(filtered);
+    return () => clearInterval(interval);
+  }, [autoRefresh, activeFilters, activePresetId, isApplyingPreset]);
 
-          // Update preset cache if a preset is active
-          if (activePresetId) {
-            setPresetResultsCache(prev => ({
-              ...prev,
-              [activePresetId]: filtered
-            }));
-          }
-        }
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, searchText, portRangeMin, portRangeMax, searchMode, activePresetId, isApplyingPreset]);
-
-  // Apply a preset (or toggle it off if already active)
   const applyPreset = async (preset: FilterPreset) => {
-    // Prevent useEffect from firing during preset application
     setIsApplyingPreset(true);
 
-    // If clicking the same preset, toggle it off
     if (activePresetId === preset.id) {
-      // Show cached all ports instantly
-      if (cachedAllPorts.length > 0) {
-        setPorts(cachedAllPorts);
-      }
-
-      // Clear state
       setSearchText('');
       setPortRangeMin('');
       setPortRangeMax('');
       setActivePresetId(null);
-      setActiveFilters({});
-
-      // Fetch fresh all ports
+      if (cachedAllPorts.length > 0) setPorts(cachedAllPorts);
       await fetchPorts({});
       setIsApplyingPreset(false);
       return;
     }
 
-    const { filters } = preset;
-
-    // INSTANT: Show cached results for this preset if available
     if (presetResultsCache[preset.id] !== undefined) {
       setPorts(presetResultsCache[preset.id]);
     } else {
-      // No cache for this preset yet, clear display
       setPorts([]);
     }
 
-    // Update activeFilters and activePresetId FIRST (single source of truth)
-    setActiveFilters(filters);
     setActivePresetId(preset.id);
-
-    // Then update UI state to match (for display purposes only)
     setSearchText('');
     setPortRangeMin('');
     setPortRangeMax('');
 
-    // Apply port range to UI
-    if (filters.portRange) {
-      setPortRangeMin(filters.portRange.min.toString());
-      setPortRangeMax(filters.portRange.max.toString());
+    if (preset.filters.portRange) {
+      setPortRangeMin(preset.filters.portRange.min.toString());
+      setPortRangeMax(preset.filters.portRange.max.toString());
     }
 
-    // Apply exact port to UI
-    if (filters.port !== undefined) {
-      setPortRangeMin(filters.port.toString());
-      setPortRangeMax(filters.port.toString());
+    if (preset.filters.port !== undefined) {
+      setPortRangeMin(preset.filters.port.toString());
+      setPortRangeMax(preset.filters.port.toString());
     }
 
-    // Apply process filter to UI
-    if (filters.processPrefix) {
-      setSearchText(filters.processPrefix);
+    if (preset.filters.processPrefix) {
+      setSearchText(preset.filters.processPrefix);
       setSearchMode('prefix');
-    } else if (filters.processName) {
-      setSearchText(filters.processName);
+    } else if (preset.filters.processName) {
+      setSearchText(preset.filters.processName);
       setSearchMode('substring');
     }
 
-    // Fetch with preset filters and cache the results
-    await fetchPorts(filters, preset.id);
-
+    await fetchPorts(preset.filters, preset.id);
     setIsApplyingPreset(false);
   };
 
-  // Save current filters as preset
-  const saveCurrentAsPreset = async () => {
-    const name = prompt('Enter preset name:');
-    if (!name) return;
-
-    const description = prompt('Enter description (optional):');
-
-    const newPreset: FilterPreset = {
-      id: `custom-${Date.now()}`,
-      name,
-      description: description || undefined,
-      filters: {},
-    };
-
-    // Build filters from current state
-    if (portRangeMin && portRangeMax) {
-      const min = parseInt(portRangeMin, 10);
-      const max = parseInt(portRangeMax, 10);
-      if (!isNaN(min) && !isNaN(max)) {
-        if (min === max) {
-          newPreset.filters.port = min;
-        } else {
-          newPreset.filters.portRange = { min, max };
-        }
-      }
-    }
-
-    if (searchText) {
-      if (searchMode === 'prefix') {
-        newPreset.filters.processPrefix = searchText;
-      } else {
-        newPreset.filters.processName = searchText;
-      }
-    }
-
-    // Save to config
-    const updatedPresets = [...presets, newPreset];
-    setPresets(updatedPresets);
-
-    const configResult = await window.portwatchAPI.loadConfig();
-    if (configResult.success && configResult.data) {
-      await window.portwatchAPI.saveConfig({
-        ...configResult.data,
-        presets: updatedPresets,
-      });
-    }
-
-    alert(`Preset "${name}" saved!`);
-  };
-
-  // Delete a preset
-  const deletePreset = async (presetId: string) => {
-    if (!confirm('Delete this preset?')) return;
-
-    const updatedPresets = presets.filter((p) => p.id !== presetId);
-    setPresets(updatedPresets);
-
-    const configResult = await window.portwatchAPI.loadConfig();
-    if (configResult.success && configResult.data) {
-      await window.portwatchAPI.saveConfig({
-        ...configResult.data,
-        presets: updatedPresets,
-      });
-    }
-
-    if (activePresetId === presetId) {
-      setActivePresetId(null);
-    }
-  };
-
-  // Clear all filters
   const clearFilters = () => {
     setSearchText('');
     setPortRangeMin('');
     setPortRangeMax('');
     setActivePresetId(null);
-    setActiveFilters({});
-
-    // Show cached all ports instantly
-    if (cachedAllPorts.length > 0) {
-      setPorts(cachedAllPorts);
-    }
-
-    // useEffect will handle fetching with empty filters
+    if (cachedAllPorts.length > 0) setPorts(cachedAllPorts);
   };
 
-  // Kill process (graceful SIGTERM)
-  const handleKill = async (port: number, force: boolean = false) => {
-    const action = force ? 'Force kill' : 'Kill';
-    if (confirm(`${action} process on port ${port}?${force ? '\n\n(Force kill will not allow the process to clean up gracefully)' : ''}`)) {
-      // Optimistically remove from UI for instant feedback
-      setPorts(prevPorts => prevPorts.filter(p => p.port !== port));
+  const saveCurrentAsPreset = async () => {
+    const name = presetName.trim();
+    if (!name) return;
 
-      const result = await window.portwatchAPI.killByPort(port, force);
+    const newPreset: FilterPreset = {
+      id: `custom-${Date.now()}`,
+      name,
+      description: presetDescription.trim() || undefined,
+      filters: activeFilters,
+    };
 
-      if (result.success) {
-        // Wait for process to die
-        await new Promise(resolve => setTimeout(resolve, force ? 300 : 500));
-        // Refresh to verify
-        await fetchPorts();
-      } else {
-        // Kill failed, restore UI
-        alert(`Failed to ${action.toLowerCase()} process: ${result.message}`);
-        await fetchPorts();
-      }
+    const updatedPresets = [...presets, newPreset];
+    setPresets(updatedPresets);
+
+    const configResult = await window.portwatchAPI.loadConfig();
+    if (configResult.success && configResult.data) {
+      await window.portwatchAPI.saveConfig({ ...configResult.data, presets: updatedPresets });
+    }
+
+    setPresetName('');
+    setPresetDescription('');
+    setPresetDialogOpen(false);
+    showToast(`Saved "${name}"`, 'success');
+  };
+
+  const deletePreset = async (presetId: string) => {
+    const updatedPresets = presets.filter((preset) => preset.id !== presetId);
+    setPresets(updatedPresets);
+
+    const configResult = await window.portwatchAPI.loadConfig();
+    if (configResult.success && configResult.data) {
+      await window.portwatchAPI.saveConfig({ ...configResult.data, presets: updatedPresets });
+    }
+
+    if (activePresetId === presetId) setActivePresetId(null);
+    showToast('Preset deleted', 'info');
+  };
+
+  const confirmKill = async () => {
+    if (!pendingKill) return;
+
+    const { port, force } = pendingKill;
+    setPendingKill(null);
+    setPorts((current) => current.filter((item) => item.port !== port.port));
+
+    const result = await window.portwatchAPI.killByPort(port.port, force);
+    if (result.success) {
+      showToast(`${force ? 'Force stopped' : 'Stopped'} ${port.processName} on :${port.port}`, 'success');
+      await new Promise((resolve) => setTimeout(resolve, force ? 300 : 500));
+      await fetchPorts();
+    } else {
+      showToast(result.message || 'Process action failed', 'error');
+      await fetchPorts();
     }
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-lg font-semibold text-gray-800">PortWatch</h1>
-          <div className="flex gap-2">
+    <div className="app-shell">
+      <header className="toolbar">
+        <div className="toolbar-top">
+          <div>
+            <div className="eyebrow">Menu bar monitor</div>
+            <h1>PortWatch</h1>
+          </div>
+          <div className="toolbar-actions">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`px-2 py-1 text-xs rounded ${
-                showFilters
-                  ? 'bg-purple-500 text-white hover:bg-purple-600'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-              title="Advanced filters"
+              className={`icon-button ${showFilters ? 'is-active' : ''}`}
+              onClick={() => setShowFilters((value) => !value)}
+              title="Filters"
+              aria-label="Filters"
             >
-              ⚙️
+              <Icon name="filter" />
             </button>
             <button
-              onClick={fetchPorts}
+              className="icon-button"
+              onClick={() => fetchPorts()}
               disabled={loading}
-              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              title="Refresh"
+              aria-label="Refresh"
             >
-              {loading ? '...' : '↻'}
+              <Icon name="refresh" className={`h-4 w-4 ${loading ? 'spin' : ''}`} />
             </button>
             <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`px-2 py-1 text-xs rounded ${
-                autoRefresh
-                  ? 'bg-green-500 text-white hover:bg-green-600'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+              className={`auto-button ${autoRefresh ? 'is-on' : ''}`}
+              onClick={() => setAutoRefresh((value) => !value)}
               title="Auto-refresh"
+              aria-label="Auto-refresh"
             >
-              Auto
+              <Icon name={autoRefresh ? 'pause' : 'play'} />
+              <span>{autoRefresh ? 'Live' : 'Paused'}</span>
             </button>
           </div>
         </div>
 
-        {/* Preset Bar */}
-        {presets.length > 0 && (
-          <div className="mb-2">
-            <div className="text-xs text-gray-600 font-medium mb-1.5">Presets</div>
-            <div className="flex flex-wrap gap-2">
-              {presets.map((preset) => (
-                <div key={preset.id} className="flex items-center gap-1">
-                  <button
-                    onClick={() => applyPreset(preset)}
-                    className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-colors ${
-                      activePresetId === preset.id
-                        ? 'bg-purple-500 text-white'
-                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                    }`}
-                    title={preset.description}
-                  >
-                    {preset.name}
-                  </button>
-                  {!['web-dev', 'inngest', 'postgres'].includes(preset.id) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deletePreset(preset.id);
-                      }}
-                      className="px-1 text-xs text-gray-400 hover:text-red-600"
-                      title="Delete preset"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ))}
-              {(portRangeMin || portRangeMax || searchText) && !activePresetId && (
+        <div className="stats-strip">
+          <div>
+            <strong>{ports.length}</strong>
+            <span>ports</span>
+          </div>
+          <div>
+            <strong>{portsByProcess}</strong>
+            <span>processes</span>
+          </div>
+          <div>
+            <strong>{activePreset?.name || (hasFilters ? 'Custom' : 'All')}</strong>
+            <span>{describeFilters(activeFilters)}</span>
+          </div>
+        </div>
+
+        <div className="search-row">
+          <div className="search-box">
+            <Icon name="terminal" className="h-4 w-4" />
+            <input
+              type="text"
+              placeholder={`Search process ${searchMode === 'prefix' ? 'prefix' : 'name'}`}
+              value={searchText}
+              onChange={(event) => {
+                setActivePresetId(null);
+                setSearchText(event.target.value);
+              }}
+            />
+          </div>
+          <div className="segmented" aria-label="Search mode">
+            <button className={searchMode === 'substring' ? 'is-selected' : ''} onClick={() => setSearchMode('substring')}>
+              Contains
+            </button>
+            <button className={searchMode === 'prefix' ? 'is-selected' : ''} onClick={() => setSearchMode('prefix')}>
+              Prefix
+            </button>
+          </div>
+        </div>
+
+        {showFilters && (
+          <section className="filter-panel" aria-label="Advanced filters">
+            <div className="range-row">
+              <label>
+                <span>Min port</span>
+                <input
+                  type="number"
+                  placeholder="3000"
+                  value={portRangeMin}
+                  onChange={(event) => {
+                    setActivePresetId(null);
+                    setPortRangeMin(event.target.value);
+                  }}
+                  min="0"
+                  max="65535"
+                />
+              </label>
+              <label>
+                <span>Max port</span>
+                <input
+                  type="number"
+                  placeholder="9000"
+                  value={portRangeMax}
+                  onChange={(event) => {
+                    setActivePresetId(null);
+                    setPortRangeMax(event.target.value);
+                  }}
+                  min="0"
+                  max="65535"
+                />
+              </label>
+              {(portRangeMin || portRangeMax) && (
                 <button
-                  onClick={saveCurrentAsPreset}
-                  className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full hover:bg-green-200 whitespace-nowrap"
-                  title="Save current filters as preset"
+                  className="icon-button quiet"
+                  onClick={() => {
+                    setPortRangeMin('');
+                    setPortRangeMax('');
+                    setActivePresetId(null);
+                  }}
+                  title="Clear port range"
+                  aria-label="Clear port range"
                 >
-                  + Create Preset
-                </button>
-              )}
-              {(portRangeMin || portRangeMax || searchText || activePresetId) && (
-                <button
-                  onClick={clearFilters}
-                  className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 whitespace-nowrap"
-                  title="Clear all filters"
-                >
-                  Clear
+                  <Icon name="x" />
                 </button>
               )}
             </div>
-          </div>
+            {portRangeError && <div className="field-error">Min port must be lower than max port.</div>}
+          </section>
         )}
 
-        {/* Search */}
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
-            placeholder={`Search ${searchMode === 'prefix' ? 'prefix' : 'name'}...`}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={searchMode}
-            onChange={(e) => setSearchMode(e.target.value as 'substring' | 'prefix')}
-            className="px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="substring">Contains</option>
-            <option value="prefix">Starts with</option>
-          </select>
-        </div>
-
-        {/* Advanced Filters */}
-        {showFilters && (
-          <div className="p-2 bg-gray-50 rounded border border-gray-200 space-y-2">
-            <div>
-              <label className="text-xs text-gray-600 font-medium mb-1 block">
-                Port Range
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  value={portRangeMin}
-                  onChange={(e) => setPortRangeMin(e.target.value)}
-                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  max="65535"
-                />
-                <span className="text-gray-400 self-center">-</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  value={portRangeMax}
-                  onChange={(e) => setPortRangeMax(e.target.value)}
-                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  max="65535"
-                />
-                {(portRangeMin || portRangeMax) && (
-                  <button
-                    onClick={() => {
-                      setPortRangeMin('');
-                      setPortRangeMax('');
-                      setActivePresetId(null);
-                      // useEffect will handle refetching with remaining filters
-                    }}
-                    className="px-2 py-1 text-xs text-gray-600 hover:text-red-600"
-                    title="Clear"
-                  >
-                    ✕
+        {presets.length > 0 && (
+          <div className="preset-row" aria-label="Presets">
+            {presets.map((preset) => (
+              <div className="preset-chip" key={preset.id}>
+                <button
+                  className={activePresetId === preset.id ? 'is-selected' : ''}
+                  onClick={() => applyPreset(preset)}
+                  title={preset.description}
+                >
+                  {preset.name}
+                </button>
+                {!BUILT_IN_PRESETS.has(preset.id) && (
+                  <button className="preset-delete" onClick={() => deletePreset(preset.id)} title="Delete preset" aria-label={`Delete ${preset.name}`}>
+                    <Icon name="x" className="h-3 w-3" />
                   </button>
                 )}
               </div>
-            </div>
+            ))}
+            {hasFilters && !activePresetId && (
+              <button className="preset-action" onClick={() => setPresetDialogOpen(true)} title="Save current filters">
+                <Icon name="save" className="h-3.5 w-3.5" />
+                Save
+              </button>
+            )}
+            {hasFilters && (
+              <button className="preset-action muted" onClick={clearFilters}>
+                Clear
+              </button>
+            )}
           </div>
         )}
-      </div>
+      </header>
 
-      {/* Port List */}
-      <div className="flex-1 overflow-y-auto">
+      <main className="port-list">
         {ports.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-            {loading ? 'Loading...' : 'No ports found'}
+          <div className="empty-state">
+            <Icon name={loading ? 'refresh' : 'shield'} className={`h-7 w-7 ${loading ? 'spin' : ''}`} />
+            <strong>{loading ? 'Scanning ports' : 'No listening ports found'}</strong>
+            <span>{hasFilters ? 'Try clearing filters or broadening the port range.' : 'Everything is quiet right now.'}</span>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
-            {ports.map((port, index) => (
-              <div
-                key={`${port.pid}-${port.port}-${index}`}
-                className="p-3 hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg font-bold text-blue-600">
-                        :{port.port}
-                      </span>
-                      <span className="text-xs text-gray-500">PID {port.pid}</span>
-                    </div>
-                    <div className="text-sm font-medium text-gray-800 mb-0.5">
-                      {port.processName}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">
-                      {port.workingDirectory.replace(/^\/Users\/[^/]+/, '~')}
-                    </div>
-                  </div>
-                  <div className="ml-2 flex gap-1">
-                    <button
-                      onClick={() => handleKill(port.port, false)}
-                      className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
-                      title="Kill process (SIGTERM - allows cleanup)"
-                    >
-                      Kill
-                    </button>
-                    <button
-                      onClick={() => handleKill(port.port, true)}
-                      className="px-2 py-1 text-xs text-red-700 bg-red-50 hover:bg-red-100 rounded transition-colors font-semibold"
-                      title="Force kill process (SIGKILL - immediate)"
-                    >
-                      Force
-                    </button>
-                  </div>
+          ports.map((port, index) => (
+            <article className="port-row" key={`${port.pid}-${port.port}-${index}`}>
+              <div className="port-badge">:{port.port}</div>
+              <div className="port-main">
+                <div className="port-title">
+                  <strong>{port.processName}</strong>
+                  <span>PID {port.pid}</span>
+                </div>
+                <div className="port-meta">
+                  <span>{port.protocol || 'TCP'}</span>
+                  <span>{port.address || '*'}</span>
+                  <span title={port.workingDirectory}>{formatPath(port.workingDirectory)}</span>
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="row-actions">
+                <button className="danger-button soft" onClick={() => setPendingKill({ port, force: false })}>
+                  Stop
+                </button>
+                <button className="icon-button danger" onClick={() => setPendingKill({ port, force: true })} title="Force stop" aria-label={`Force stop ${port.processName}`}>
+                  <Icon name="zap" />
+                </button>
+              </div>
+            </article>
+          ))
         )}
-      </div>
+      </main>
 
-      {/* Footer */}
-      <div className="bg-white border-t border-gray-200 px-3 py-2 text-xs text-gray-500 text-center">
-        {ports.length} port{ports.length !== 1 ? 's' : ''} • PortWatch v1.0.0
-      </div>
+      <footer className="status-bar">
+        <span>{ports.length} port{ports.length === 1 ? '' : 's'} - {loading ? 'Refreshing...' : autoRefresh ? 'Live refresh every 5s' : 'Manual refresh'}</span>
+        <span>PortWatch v1.1.0</span>
+      </footer>
+
+      {presetDialogOpen && (
+        <div className="dialog-backdrop" role="presentation">
+          <form
+            className="dialog"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveCurrentAsPreset();
+            }}
+          >
+            <h2>Save Preset</h2>
+            <p>{describeFilters(activeFilters)}</p>
+            <label>
+              <span>Name</span>
+              <input value={presetName} onChange={(event) => setPresetName(event.target.value)} autoFocus />
+            </label>
+            <label>
+              <span>Description</span>
+              <input value={presetDescription} onChange={(event) => setPresetDescription(event.target.value)} />
+            </label>
+            <div className="dialog-actions">
+              <button type="button" className="secondary-button" onClick={() => setPresetDialogOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-button" disabled={!presetName.trim()}>
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {pendingKill && (
+        <div className="dialog-backdrop" role="presentation">
+          <div className="dialog">
+            <h2>{pendingKill.force ? 'Force Stop Process?' : 'Stop Process?'}</h2>
+            <p>
+              {pendingKill.port.processName} on :{pendingKill.port.port} will receive {pendingKill.force ? 'SIGKILL immediately.' : 'SIGTERM and can clean up.'}
+            </p>
+            <div className="dialog-actions">
+              <button type="button" className="secondary-button" onClick={() => setPendingKill(null)}>
+                Cancel
+              </button>
+              <button type="button" className="danger-button" onClick={confirmKill}>
+                {pendingKill.force ? 'Force Stop' : 'Stop'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && <div className={`toast ${toast.tone}`}>{toast.message}</div>}
     </div>
   );
 }

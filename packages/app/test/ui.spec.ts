@@ -48,40 +48,36 @@ test.describe('UI Tests', () => {
   test('search mode toggle works', async () => {
     const { window } = context;
 
-    // Find the search mode select
-    const searchModeSelect = window.locator('select');
-    await expect(searchModeSelect).toBeVisible();
+    const searchMode = window.getByLabel('Search mode');
+    await expect(searchMode).toBeVisible();
 
-    // Should have two options
-    const options = await searchModeSelect.locator('option').allTextContents();
-    expect(options).toContain('Contains');
-    expect(options).toContain('Starts with');
+    const containsButton = searchMode.getByRole('button', { name: 'Contains' });
+    const prefixButton = searchMode.getByRole('button', { name: 'Prefix' });
+    await expect(containsButton).toBeVisible();
+    await expect(prefixButton).toBeVisible();
 
-    // Change to "Starts with"
-    await searchModeSelect.selectOption('prefix');
+    await prefixButton.click();
 
-    // Verify it changed
-    const selectedValue = await searchModeSelect.inputValue();
-    expect(selectedValue).toBe('prefix');
+    const prefixClasses = await prefixButton.getAttribute('class');
+    expect(prefixClasses).toContain('is-selected');
   });
 
   test('advanced filters panel toggles', async () => {
     const { window } = context;
 
-    // Find the settings button (gear icon)
-    const settingsButton = window.locator('button:has-text("⚙️")');
-    await expect(settingsButton).toBeVisible();
+    const filtersButton = window.getByRole('button', { name: 'Filters', exact: true });
+    await expect(filtersButton).toBeVisible();
 
     // Advanced filters should be hidden initially
-    const advancedFilters = window.locator('text="Port Range"');
+    const advancedFilters = window.getByLabel('Advanced filters');
     await expect(advancedFilters).not.toBeVisible();
 
     // Click to show
-    await settingsButton.click();
+    await filtersButton.click();
     await expect(advancedFilters).toBeVisible();
 
     // Click to hide
-    await settingsButton.click();
+    await filtersButton.click();
     await expect(advancedFilters).not.toBeVisible();
   });
 
@@ -89,12 +85,12 @@ test.describe('UI Tests', () => {
     const { window } = context;
 
     // Open advanced filters
-    const settingsButton = window.locator('button:has-text("⚙️")');
-    await settingsButton.click();
+    const filtersButton = window.getByRole('button', { name: 'Filters', exact: true });
+    await filtersButton.click();
 
     // Find port range inputs
-    const minInput = window.locator('input[placeholder="Min"]');
-    const maxInput = window.locator('input[placeholder="Max"]');
+    const minInput = window.locator('input[placeholder="3000"]');
+    const maxInput = window.locator('input[placeholder="9000"]');
 
     await expect(minInput).toBeVisible();
     await expect(maxInput).toBeVisible();
@@ -107,7 +103,7 @@ test.describe('UI Tests', () => {
     await window.waitForTimeout(1000);
 
     // Verify clear button appears
-    const clearButton = window.locator('button[title="Clear"]');
+    const clearButton = window.getByLabel('Clear port range');
     await expect(clearButton).toBeVisible();
 
     // Click clear
@@ -121,8 +117,7 @@ test.describe('UI Tests', () => {
   test('refresh button works', async () => {
     const { window } = context;
 
-    // Find refresh button (loading already completed in beforeEach)
-    const refreshButton = window.locator('button:has-text("↻")');
+    const refreshButton = window.getByRole('button', { name: 'Refresh', exact: true });
     await expect(refreshButton).toBeVisible();
 
     // Click it
@@ -138,27 +133,22 @@ test.describe('UI Tests', () => {
   test('auto-refresh toggle works', async () => {
     const { window } = context;
 
-    // Find auto-refresh button
-    const autoButton = window.locator('button:has-text("Auto")');
+    const autoButton = window.getByLabel('Auto-refresh');
     await expect(autoButton).toBeVisible();
 
-    // Get initial state (should be active/green)
-    const initialClasses = await autoButton.getAttribute('class');
-    expect(initialClasses).toContain('bg-green-500');
+    await expect(autoButton).toContainText('Live');
 
     // Toggle off
     await autoButton.click();
     await window.waitForTimeout(100);
 
-    const toggledClasses = await autoButton.getAttribute('class');
-    expect(toggledClasses).toContain('bg-gray-200');
+    await expect(autoButton).toContainText('Paused');
 
     // Toggle back on
     await autoButton.click();
     await window.waitForTimeout(100);
 
-    const finalClasses = await autoButton.getAttribute('class');
-    expect(finalClasses).toContain('bg-green-500');
+    await expect(autoButton).toContainText('Live');
   });
 
   test('footer shows correct port count', async () => {

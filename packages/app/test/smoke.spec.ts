@@ -59,12 +59,10 @@ test.describe('Smoke Tests', () => {
     expect(header).toContain('PortWatch');
 
     // Check for refresh button
-    const refreshButton = await window.locator('button:has-text("↻")');
-    expect(await refreshButton.isVisible()).toBe(true);
+    await expect(window.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
 
     // Check for auto-refresh toggle
-    const autoButton = await window.locator('button:has-text("Auto")');
-    expect(await autoButton.isVisible()).toBe(true);
+    await expect(window.getByRole('button', { name: 'Auto-refresh' })).toBeVisible();
   });
 
   test('app quits cleanly', async () => {

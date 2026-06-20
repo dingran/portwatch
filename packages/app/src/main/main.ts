@@ -1,4 +1,4 @@
-import { app, ipcMain, nativeImage, Menu } from 'electron';
+import { app, ipcMain, nativeImage, Menu, type NativeImage } from 'electron';
 import { menubar, Menubar } from 'menubar';
 import path from 'path';
 import fs from 'fs';
@@ -49,7 +49,7 @@ function updateContextMenu() {
 /**
  * Load menubar icon with graceful fallback
  */
-function getMenubarIcon(): nativeImage {
+function getMenubarIcon(): NativeImage {
   // In production, assets are in app.getPath('userData')/../Resources/assets
   // In development, they're relative to __dirname
   let iconPath: string;

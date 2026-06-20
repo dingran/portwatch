@@ -1,5 +1,9 @@
 import { _electron as electron, ElectronApplication, Page } from 'playwright';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface ElectronTestContext {
   app: ElectronApplication;
@@ -12,7 +16,7 @@ export interface ElectronTestContext {
 export async function launchElectronApp(): Promise<ElectronTestContext> {
   // Launch Electron app
   const app = await electron.launch({
-    args: [path.join(__dirname, '..', 'dist', 'main', 'main.js')],
+    args: [path.join(__dirname, '..', 'dist', 'main', 'main.cjs')],
     env: {
       ...process.env,
       NODE_ENV: 'production',
