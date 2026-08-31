@@ -45,7 +45,7 @@ Copy these SHA256 values for the next step.
 
 ## Step 3: Update Homebrew Cask Formula
 
-1. **Edit `homebrew/portwatch.rb`** and replace:
+1. **Edit `homebrew/Casks/portwatch.rb`** and replace:
    - `REPLACE_WITH_ARM64_SHA256` with the arm64 ZIP checksum
    - `REPLACE_WITH_INTEL_SHA256` with the Intel ZIP checksum
 
@@ -87,8 +87,7 @@ Instead of submitting to official Homebrew Cask, you can create your own tap:
    - URL: https://github.com/dingran/homebrew-tap
 
 2. **Add the formula:**
-   - Create folder: `Casks/`
-   - Copy `homebrew/portwatch.rb` to `Casks/portwatch.rb`
+   - Copy the `homebrew/Casks/portwatch.rb` file into the tap repo (keep it under `Casks/`)
    - Commit and push
 
 3. **Users can install with:**
