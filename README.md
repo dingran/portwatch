@@ -50,11 +50,15 @@ npx @portwatch/cli list
 3. Open the DMG and drag PortWatch to Applications
 4. **First launch**: Right-click the app → Open (due to unsigned app warning)
 
-**Via Homebrew** (after creating a tap):
+**Via Homebrew:**
+
+If PortWatch lands in the [official Homebrew Cask](https://github.com/Homebrew/homebrew-cask) repo, you can install it with:
+
 ```bash
-brew tap dingran/tap
-brew install --cask dingran/tap/portwatch
+brew install --cask portwatch
 ```
+
+Until then, you can install from a tap. See [`homebrew/README.md`](homebrew/README.md) for the current status and setup steps.
 
 **Note**: The app is not notarized, so macOS will show a security warning on first launch. See [RELEASE.md](RELEASE.md) for details.
 
@@ -269,8 +273,8 @@ User preferences are stored in `~/.portwatch/config.json`:
 - [x] Create proper menu bar icon
 - [x] Add electron-builder configuration
 - [x] Test Electron app build
-- [ ] Create Homebrew tap (template ready in `homebrew/portwatch.rb`)
-- [ ] Create GitHub release with v1.0.0 (see [RELEASE.md](RELEASE.md))
+- [x] Create GitHub release (v1.1.0, see [RELEASE.md](RELEASE.md))
+- [ ] Create Homebrew tap repo (template ready in [`homebrew/Casks/portwatch.rb`](homebrew/Casks/portwatch.rb), see [`homebrew/README.md`](homebrew/README.md))
 - [ ] Publish CLI to npm
 - [ ] Add tests
 - [ ] CI/CD with GitHub Actions
